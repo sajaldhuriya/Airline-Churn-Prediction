@@ -1,4 +1,3 @@
-# File: business_strategy/flask_dashboard/app.py
 """
 Manager-facing dashboard for the AeroRetain AI churn system.
 
@@ -152,32 +151,40 @@ def predict():
     if request.method == "POST":
         form_data = request.form
         try:
-            # Mirrors `src/api/app.py::CustomerData` exactly. Each dummy
-            # is one-hot encoded as a separate checkbox; the API's
-            # Pydantic validators ensure exactly-one-per-category. SALARY
-            # and CLV were dropped in v2.0.0 — the stats battery showed
-            # they're negligible (Cohen's d ≈ 0) and the model doesn't
-            # use them.
+            # Extract dropdown selections
+            gender = request.form["gender"]
+            education = request.form["education"]
+            marital = request.form["marital_status"]
+            card = request.form["loyalty_card"]
+            enroll = request.form["enrollment_type"]
+
+            # Mirrors `src/api/app.py::CustomerData` exactly.
             payload = {
                 "LIFETIME_FLIGHTS":          float(request.form["flights"]),
                 "LIFETIME_DISTANCE":         float(request.form["distance"]),
                 "LIFETIME_POINTS_EARNED":    float(request.form["points_earned"]),
                 "LIFETIME_POINTS_REDEEMED":  float(request.form["points_redeemed"]),
-                "GENDER_Female":             int(request.form["gender_female"]),
-                "GENDER_Male":               int(request.form["gender_male"]),
-                "EDUCATION_Bachelor":        int(request.form["edu_bachelor"]),
-                "EDUCATION_College":         int(request.form["edu_college"]),
-                "EDUCATION_Doctor":          int(request.form["edu_doctor"]),
-                "EDUCATION_High_School_or_Below": int(request.form["edu_highschool"]),
-                "EDUCATION_Master":          int(request.form["edu_master"]),
-                "MARITAL_STATUS_Divorced":   int(request.form["marital_divorced"]),
-                "MARITAL_STATUS_Married":    int(request.form["marital_married"]),
-                "MARITAL_STATUS_Single":     int(request.form["marital_single"]),
-                "LOYALTY_CARD_Aurora":       int(request.form["card_aurora"]),
-                "LOYALTY_CARD_Nova":         int(request.form["card_nova"]),
-                "LOYALTY_CARD_Star":         int(request.form["card_star"]),
-                "ENROLLMENT_TYPE_2018_Promotion": int(request.form["enroll_2018_promo"]),
-                "ENROLLMENT_TYPE_Standard":  int(request.form["enroll_standard"]),
+                
+                # Convert dropdowns back to one-hot dummies for the API
+                "GENDER_Female":             1 if gender == "Female" else 0,
+                "GENDER_Male":               1 if gender == "Male" else 0,
+                
+                "EDUCATION_Bachelor":        1 if education == "Bachelor" else 0,
+                "EDUCATION_College":         1 if education == "College" else 0,
+                "EDUCATION_Doctor":          1 if education == "Doctor" else 0,
+                "EDUCATION_High_School_or_Below": 1 if education == "High School or Below" else 0,
+                "EDUCATION_Master":          1 if education == "Master" else 0,
+                
+                "MARITAL_STATUS_Divorced":   1 if marital == "Divorced" else 0,
+                "MARITAL_STATUS_Married":    1 if marital == "Married" else 0,
+                "MARITAL_STATUS_Single":     1 if marital == "Single" else 0,
+                
+                "LOYALTY_CARD_Aurora":       1 if card == "Aurora" else 0,
+                "LOYALTY_CARD_Nova":         1 if card == "Nova" else 0,
+                "LOYALTY_CARD_Star":         1 if card == "Star" else 0,
+                
+                "ENROLLMENT_TYPE_2018_Promotion": 1 if enroll == "2018 Promotion" else 0,
+                "ENROLLMENT_TYPE_Standard":  1 if enroll == "Standard" else 0,
             }
         except (KeyError, ValueError) as e:
             error = f"Invalid form input: {e}"

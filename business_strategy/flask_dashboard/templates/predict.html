@@ -5,8 +5,8 @@
 <p class="small text-muted mb-3">
   Submits a 19-field profile (4 engagement numerics + 15 dummies) to the
   FastAPI champion. SALARY/CLV are <strong>not</strong> used by the model
-  — the stats battery showed they're negligible (Cohen's d ≈ 0). Each
-  categorical must pick exactly one option; the API enforces this.
+  — the stats battery showed they're negligible (Cohen's d ≈ 0). The
+  backend automatically converts the selections below into the required one-hot encoded matrix.
 </p>
 
 <div class="row g-4">
@@ -21,39 +21,53 @@
                     <div class="col-md-3"><label class="small text-muted">POINTS REDEEMED</label><input type="number" class="form-control bg-dark text-white border-secondary" name="points_redeemed" value="{{ form.points_redeemed if form else '500' }}" required></div>
                 </div>
 
-                <h6 class="mt-4 mb-2 text-muted small">GENDER (exactly one)</h6>
+                <hr class="border-secondary mt-4 mb-3">
+                
                 <div class="row g-3">
-                    <div class="col-md-3"><label class="small text-muted">GENDER: FEMALE</label><input type="number" class="form-control bg-dark text-white border-secondary" name="gender_female" value="{{ form.gender_female if form else '1' }}" min="0" max="1"></div>
-                    <div class="col-md-3"><label class="small text-muted">GENDER: MALE</label><input type="number" class="form-control bg-dark text-white border-secondary" name="gender_male" value="{{ form.gender_male if form else '0' }}" min="0" max="1"></div>
-                </div>
+                    <div class="col-md-6">
+                        <label class="small text-muted mb-1">GENDER</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="gender" required>
+                            <option value="Female" {% if form and form.gender == 'Female' %}selected{% endif %}>Female</option>
+                            <option value="Male" {% if form and form.gender == 'Male' %}selected{% endif %}>Male</option>
+                        </select>
+                    </div>
 
-                <h6 class="mt-4 mb-2 text-muted small">EDUCATION (exactly one)</h6>
-                <div class="row g-3">
-                    <div class="col-md-2"><label class="small text-muted">BACHELOR</label><input type="number" class="form-control bg-dark text-white border-secondary" name="edu_bachelor" value="{{ form.edu_bachelor if form else '0' }}" min="0" max="1"></div>
-                    <div class="col-md-2"><label class="small text-muted">COLLEGE</label><input type="number" class="form-control bg-dark text-white border-secondary" name="edu_college" value="{{ form.edu_college if form else '0' }}" min="0" max="1"></div>
-                    <div class="col-md-2"><label class="small text-muted">DOCTOR</label><input type="number" class="form-control bg-dark text-white border-secondary" name="edu_doctor" value="{{ form.edu_doctor if form else '0' }}" min="0" max="1"></div>
-                    <div class="col-md-3"><label class="small text-muted">HIGH SCHOOL OR BELOW</label><input type="number" class="form-control bg-dark text-white border-secondary" name="edu_highschool" value="{{ form.edu_highschool if form else '0' }}" min="0" max="1"></div>
-                    <div class="col-md-3"><label class="small text-muted">MASTER</label><input type="number" class="form-control bg-dark text-white border-secondary" name="edu_master" value="{{ form.edu_master if form else '0' }}" min="0" max="1"></div>
-                </div>
+                    <div class="col-md-6">
+                        <label class="small text-muted mb-1">MARITAL STATUS</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="marital_status" required>
+                            <option value="Single" {% if form and form.marital_status == 'Single' %}selected{% endif %}>Single</option>
+                            <option value="Married" {% if form and form.marital_status == 'Married' %}selected{% endif %}>Married</option>
+                            <option value="Divorced" {% if form and form.marital_status == 'Divorced' %}selected{% endif %}>Divorced</option>
+                        </select>
+                    </div>
 
-                <h6 class="mt-4 mb-2 text-muted small">MARITAL STATUS (exactly one)</h6>
-                <div class="row g-3">
-                    <div class="col-md-4"><label class="small text-muted">DIVORCED</label><input type="number" class="form-control bg-dark text-white border-secondary" name="marital_divorced" value="{{ form.marital_divorced if form else '0' }}" min="0" max="1"></div>
-                    <div class="col-md-4"><label class="small text-muted">MARRIED</label><input type="number" class="form-control bg-dark text-white border-secondary" name="marital_married" value="{{ form.marital_married if form else '0' }}" min="0" max="1"></div>
-                    <div class="col-md-4"><label class="small text-muted">SINGLE</label><input type="number" class="form-control bg-dark text-white border-secondary" name="marital_single" value="{{ form.marital_single if form else '0' }}" min="0" max="1"></div>
-                </div>
+                    <div class="col-md-6">
+                        <label class="small text-muted mb-1">EDUCATION</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="education" required>
+                            <option value="High School or Below" {% if form and form.education == 'High School or Below' %}selected{% endif %}>High School or Below</option>
+                            <option value="College" {% if form and form.education == 'College' %}selected{% endif %}>College</option>
+                            <option value="Bachelor" {% if form and form.education == 'Bachelor' %}selected{% endif %}>Bachelor</option>
+                            <option value="Master" {% if form and form.education == 'Master' %}selected{% endif %}>Master</option>
+                            <option value="Doctor" {% if form and form.education == 'Doctor' %}selected{% endif %}>Doctor</option>
+                        </select>
+                    </div>
 
-                <h6 class="mt-4 mb-2 text-muted small">LOYALTY CARD (exactly one)</h6>
-                <div class="row g-3">
-                    <div class="col-md-4"><label class="small text-muted">AURORA</label><input type="number" class="form-control bg-dark text-white border-secondary" name="card_aurora" value="{{ form.card_aurora if form else '0' }}" min="0" max="1"></div>
-                    <div class="col-md-4"><label class="small text-muted">NOVA</label><input type="number" class="form-control bg-dark text-white border-secondary" name="card_nova" value="{{ form.card_nova if form else '1' }}" min="0" max="1"></div>
-                    <div class="col-md-4"><label class="small text-muted">STAR</label><input type="number" class="form-control bg-dark text-white border-secondary" name="card_star" value="{{ form.card_star if form else '0' }}" min="0" max="1"></div>
-                </div>
+                    <div class="col-md-6">
+                        <label class="small text-muted mb-1">LOYALTY CARD</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="loyalty_card" required>
+                            <option value="Nova" {% if form and form.loyalty_card == 'Nova' %}selected{% endif %}>Nova</option>
+                            <option value="Star" {% if form and form.loyalty_card == 'Star' %}selected{% endif %}>Star</option>
+                            <option value="Aurora" {% if form and form.loyalty_card == 'Aurora' %}selected{% endif %}>Aurora</option>
+                        </select>
+                    </div>
 
-                <h6 class="mt-4 mb-2 text-muted small">ENROLLMENT TYPE (exactly one)</h6>
-                <div class="row g-3">
-                    <div class="col-md-6"><label class="small text-muted">2018 PROMOTION</label><input type="number" class="form-control bg-dark text-white border-secondary" name="enroll_2018_promo" value="{{ form.enroll_2018_promo if form else '0' }}" min="0" max="1"></div>
-                    <div class="col-md-6"><label class="small text-muted">STANDARD</label><input type="number" class="form-control bg-dark text-white border-secondary" name="enroll_standard" value="{{ form.enroll_standard if form else '1' }}" min="0" max="1"></div>
+                    <div class="col-md-12">
+                        <label class="small text-muted mb-1">ENROLLMENT TYPE</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="enrollment_type" required>
+                            <option value="Standard" {% if form and form.enrollment_type == 'Standard' %}selected{% endif %}>Standard</option>
+                            <option value="2018 Promotion" {% if form and form.enrollment_type == '2018 Promotion' %}selected{% endif %}>2018 Promotion</option>
+                        </select>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary w-100 mt-4">Compute Live Risk Profile</button>
