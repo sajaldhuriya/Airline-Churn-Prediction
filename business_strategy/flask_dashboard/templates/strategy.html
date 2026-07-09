@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="mb-4">Strategic Business Frameworks Matrix</h2>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="p-4 card-custom h-100">
+            <h5>1. Automated Customer BCG Matrix</h5>
+            <p class="small text-muted">Segmented via Customer Lifetime Value (CLV) vs Flight Frequency metrics.</p>
+            <div class="table-responsive">
+                <table class="table table-bordered border-secondary text-center mt-3 mb-0">
+                    <tr>
+                        <td class="bg-info p-3 bcg-cell"><strong>STARS</strong><br><span>{{ bcg.stars }}% Users</span><br><small>High value, retain aggressively.</small></td>
+                        <td class="bg-warning p-3 bcg-cell"><strong>QUESTION MARKS</strong><br><span>{{ bcg.question_marks }}% Users</span><br><small>High potential, optimize incentives.</small></td>
+                    </tr>
+                    <tr>
+                        <td class="bg-success p-3 bcg-cell"><strong>CASH COWS</strong><br><span>{{ bcg.cash_cows }}% Users</span><br><small>Consistent base, maintain stability.</small></td>
+                        <td class="bg-danger p-3 bcg-cell"><strong>DOGS</strong><br><span>{{ bcg.dogs }}% Users</span><br><small>High risk, avoid excessive spend.</small></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="p-4 card-custom h-100">
+            <h5>2. Revenue Pareto Analysis (80/20 Rule)</h5>
+            <p class="small text-muted">Validating total airline margin concentration against user percentile stratification.</p>
+            <canvas id="paretoChart" height="150"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="p-4 card-custom">
+    <h5>3. PESTEL Strategic Risk Assessment Context</h5>
+    <div class="row row-cols-1 row-cols-md-3 g-3 mt-2">
+        <div class="col"><div class="p-3 bg-dark rounded border border-secondary"><h6>Political &amp; Economic</h6><p class="small text-muted">Fluctuating aviation fuel taxes directly depress high-utilization loyalty point packages.</p></div></div>
+        <div class="col"><div class="p-3 bg-dark rounded border border-secondary"><h6>Social &amp; Technological</h6><p class="small text-muted">Shift to digital workspace models decreases premium business travel frequency requirements.</p></div></div>
+        <div class="col"><div class="p-3 bg-dark rounded border border-secondary"><h6>Environmental &amp; Legal</h6><p class="small text-muted">Carbon offset mandates push structural pricing tiers upward, impacting low-income cohorts.</p></div></div>
+    </div>
+</div>
+
+<script>
+    new Chart(document.getElementById('paretoChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Top 20% Base', 'Mid 40% Base', 'Bottom 40% Base'],
+            datasets: [
+                { type: 'bar', label: 'Revenue Share', data: [80, 15, 5], backgroundColor: '#38bdf8' },
+                { type: 'line', label: 'Cumulative Margin %', data: [80, 95, 100], borderColor: '#f43f5e' }
+            ]
+        },
+        options: { scales: { y: { min: 0, max: 100 } } }
+    });
+</script>
+{% endblock %}

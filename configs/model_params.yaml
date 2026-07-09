@@ -1,0 +1,51 @@
+# Hyperparameter grids for src/models/tune_arena.py
+#
+# Parameter values are written as plain Python literals. Two special
+# string forms are recognized for continuous parameters:
+#   "loguniform(lo,hi)"  - scipy.stats.loguniform (positive only)
+#   "uniform(lo,hi)"     - scipy.stats.uniform
+#
+# Anything else is passed through unchanged to sklearn's RandomizedSearchCV.
+#
+# The champion SVC in `src/models/train_svc.py` is intentionally hard-coded
+# to {kernel=rbf, C=1.0, class_weight=balanced} because the notebook
+# `notebooks/machine_learning.ipynb` showed that combination yields the
+# highest recall (~0.847) on the engagement-only holdout set. The arena
+# below can still *try* other kernels/Cs and may discover an even better
+# candidate, in which case the production champion in train_svc.py should
+# be updated.
+
+models:
+  Logistic_Regression:
+    n_iter: 5
+    params:
+      clf__C: [0.01, 0.1, 1, 10]
+      clf__class_weight: [null, balanced]
+
+  Random_Forest:
+    n_iter: 5
+    params:
+      clf__n_estimators: [50, 100, 200]
+      clf__max_depth: [5, 10, null]
+      clf__class_weight: [null, balanced]
+
+  XGBoost:
+    n_iter: 5
+    params:
+      clf__n_estimators: [50, 100, 200]
+      clf__learning_rate: [0.01, 0.1, 0.2]
+      clf__max_depth: [3, 5, 7]
+
+  SVC:
+    n_iter: 5
+    params:
+      clf__C: "loguniform(0.1, 100)"
+      clf__kernel: [linear, rbf]
+      clf__class_weight: [null, balanced]
+
+  Neural_Network:
+    n_iter: 3
+    params:
+      clf__hidden_layer_sizes: [[64, 32], [128, 64, 32]]
+      clf__activation: [relu, tanh]
+      clf__learning_rate_init: "loguniform(0.0001, 0.01)"

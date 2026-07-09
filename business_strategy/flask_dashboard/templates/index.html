@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2 class="mb-0">Executive Overview</h2>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+        <select class="form-select form-select-sm" id="slicerGender" style="min-width: 140px;">
+            <option value="all">Gender: All</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+        </select>
+        <select class="form-select form-select-sm" id="slicerCard" style="min-width: 160px;">
+            <option value="all">Loyalty Card: All</option>
+            <option value="Aurora">Aurora</option>
+            <option value="Nova">Nova</option>
+            <option value="Star">Star</option>
+        </select>
+        <select class="form-select form-select-sm" id="slicerEducation" style="min-width: 170px;">
+            <option value="all">Education: All</option>
+            <option value="Bachelor">Bachelor</option>
+            <option value="College">College</option>
+            <option value="Doctor">Doctor</option>
+            <option value="High School or Below">High School or Below</option>
+            <option value="Master">Master</option>
+        </select>
+        <button class="btn btn-primary btn-sm" id="applySlicers">Apply Filter</button>
+        <button class="btn btn-outline-light btn-sm" id="resetSlicers" title="Reset all slicers">Reset</button>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="p-3 card-custom h-100">
+            <p class="kpi-tile-label">Total Monitored Base</p>
+            <div class="kpi-val" id="kpiPassengers">{{ kpis.total_passengers }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="p-3 card-custom h-100">
+            <p class="kpi-tile-label">Macro Churn Rate</p>
+            <div class="kpi-val text-danger" id="kpiChurn">{{ kpis.churn_rate }}</div>
+            {% if kpis.churn_rate_ci %}
+            <div class="kpi-tile-sub" id="kpiChurnCI">
+                95% CI: {{ '%.1f' % (kpis.churn_rate_ci.lo * 100) }}% – {{ '%.1f' % (kpis.churn_rate_ci.hi * 100) }}%
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="p-3 card-custom h-100">
+            <p class="kpi-tile-label">Revenue at Risk</p>
+            <div class="kpi-val text-warning" id="kpiRevenue">{{ kpis.revenue_at_risk }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="p-3 card-custom h-100">
+            <p class="kpi-tile-label">Avg Lifetime Flights</p>
+            <div class="kpi-val text-success" id="kpiFlights">{{ kpis.avg_flights }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-8">
+        <div class="p-4 card-custom">
+            <h5>Churn Rate by Loyalty Card</h5>
+            <canvas id="timeSeriesChart" height="120"></canvas>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="p-4 card-custom">
+            <h5>Churn Driver Distribution</h5>
+            <canvas id="pieChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div id="slicerStatus" class="small text-muted mt-2" aria-live="polite"></div>
+
+<script>
+    // Global chart references so we can .update() instead of stacking new ones.
+    let timeChart = null;
+    let pieChart  = null;
+
+    const CHART_COLORS = {
+        accent: '#38bdf8',
+        danger: '#ef4444',
+        warning: '#f59e0b',
+        success: '#22c55e',
+        fg: '#cbd5e1',
+    };
+
+    function fmtPct(x) { return (x * 100).toFixed(1) + '%'; }
+    function fmtInt(x) { return Number(x).toLocaleString(); }
+
+    function renderTimeChart(labels, data) {
+        const ctx = document.getElementById('timeSeriesChart');
+        if (timeChart) timeChart.destroy();
+        timeChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Churn rate',
+                    data: data,
+                    backgroundColor: CHART_COLORS.accent,
+                }],
+            },
+            options: {
+                plugins: {
+                    legend: { labels: { color: CHART_COLORS.fg } },
+                    tooltip: { callbacks: { label: (c) => ` ${c.parsed.y.toFixed(2)}%` } },
+                },
+                scales: {
+                    x: { ticks: { color: CHART_COLORS.fg }, grid: { color: 'rgba(148,163,184,0.1)' } },
+                    y: { ticks: { color: CHART_COLORS.fg, callback: (v) => v + '%' },
+                         grid: { color: 'rgba(148,163,184,0.1)' } },
+                },
+            },
+        });
+    }
+
+    function renderPieChart(labels, data) {
+        const ctx = document.getElementById('pieChart');
+        if (pieChart) pieChart.destroy();
+        pieChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: [
+                        CHART_COLORS.danger, CHART_COLORS.warning, CHART_COLORS.success,
+                        CHART_COLORS.accent, '#a78bfa', '#f472b6',
+                    ],
+                }],
+            },
+            options: {
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: CHART_COLORS.fg } },
+                },
+            },
+        });
+    }
+
+    async function applyFilters() {
+        const params = new URLSearchParams({
+            gender:    document.getElementById('slicerGender').value,
+            card:      document.getElementById('slicerCard').value,
+            education: document.getElementById('slicerEducation').value,
+        });
+        const status = document.getElementById('slicerStatus');
+        status.textContent = 'Loading…';
+
+        try {
+            const resp = await fetch('/api/overview?' + params.toString(),
+                                    { headers: { 'Accept': 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+
+            document.getElementById('kpiPassengers').textContent = fmtInt(data.total_passengers);
+            document.getElementById('kpiChurn').textContent      = fmtPct(data.churn_rate);
+            const ci = data.churn_rate_ci;
+            if (ci) {
+                const ciEl = document.getElementById('kpiChurnCI');
+                if (ciEl) {
+                    ciEl.textContent = `95% CI: ${(ci.lo * 100).toFixed(1)}% – ${(ci.hi * 100).toFixed(1)}%`;
+                }
+            }
+            document.getElementById('kpiRevenue').textContent    = data.revenue_at_risk;
+            document.getElementById('kpiFlights').textContent    = data.avg_flights.toFixed(1);
+
+            renderTimeChart(data.card_labels, data.card_churn_rates);
+            renderPieChart(data.driver_labels, data.driver_values);
+
+            status.textContent = `Filter applied · ${fmtInt(data.total_passengers)} customers match`;
+        } catch (err) {
+            status.textContent = 'Filter failed: ' + err.message;
+        }
+    }
+
+    function resetFilters() {
+        document.getElementById('slicerGender').value    = 'all';
+        document.getElementById('slicerCard').value      = 'all';
+        document.getElementById('slicerEducation').value = 'all';
+        applyFilters();
+    }
+
+    document.getElementById('applySlicers').addEventListener('click', applyFilters);
+    document.getElementById('resetSlicers').addEventListener('click', resetFilters);
+    // Enter key on any select triggers apply
+    document.querySelectorAll('#slicerGender, #slicerCard, #slicerEducation')
+            .forEach(el => el.addEventListener('change', applyFilters));
+
+    // Initial render from server-side data (no flash of empty charts)
+    (function initCharts() {
+        const initialCard = {{ kpis.card_churn | tojson }};
+        renderTimeChart(initialCard.labels, initialCard.values);
+        const initialDrivers = {{ kpis.drivers | tojson }};
+        renderPieChart(initialDrivers.labels, initialDrivers.values);
+    })();
+</script>
+{% endblock %}

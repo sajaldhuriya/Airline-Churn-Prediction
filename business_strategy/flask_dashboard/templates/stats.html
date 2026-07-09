@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="mb-4">Statistical Inference & A/B Testing Log</h2>
+<p class="text-muted">Real-time mapping of dataset distributions pulled through automated SciPy calculation validation.</p>
+
+{% if tests %}
+<div class="row g-3 mb-4">
+    {% for test in tests %}
+    <div class="col-md-12">
+        <div class="p-4 card-custom">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Experiment {{ test.id }}: {{ test.metric }}</h4>
+                <span class="badge bg-danger px-3 py-2">{{ test.status }}</span>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-4">
+                    <p class="mb-1 text-muted">Test Methodology</p>
+                    <strong>{{ test.test_type }}</strong>
+                </div>
+                <div class="col-md-4">
+                    <p class="mb-1 text-muted">Calculated Significance Alpha Threshold</p>
+                    <strong class="text-warning">p-value = {{ test.p_value }} (p &lt; 0.05)</strong>
+                </div>
+            </div>
+            <div class="mt-3 p-3 bg-dark rounded border border-secondary">
+                <p class="mb-1 text-muted small">Tested Null Hypothesis ($H_0$)</p>
+                <p class="mb-0 italic">"{{ test.null_hypothesis }}"</p>
+            </div>
+            <div class="mt-3 text-info">
+                <strong>📈 Core Business Actionable Insight:</strong> {{ test.insight }}
+            </div>
+            {% if test.variance_check %}
+            <div class="mt-2 small text-muted">
+                <em>Variance assumption: {{ test.variance_check }}</em>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="p-5 card-custom text-center mb-4">
+    <h5 class="text-muted mb-3">No experiment log entries yet</h5>
+    <p class="mb-1">A/B tests and chi-square / t-test results will surface here once <code>data_access.get_hypothesis_tests()</code> is wired to a live results store (MLflow, Postgres, or a CSV snapshot).</p>
+    <p class="mb-0 small text-muted">Run <code>python -m src.models.statistical_tests</code> to generate the source data.</p>
+</div>
+{% endif %}
+
+{# ------------------------------------------------------------------------- #}
+{# Per-segment recall — mirrors notebooks/machine_learning.ipynb §7         #}
+{# ------------------------------------------------------------------------- #}
+<h3 class="mt-5 mb-3">Per-Segment Recall (Champion Model)</h3>
+<p class="text-muted small mb-3">
+  Of every segment that actually churned, what fraction did the
+  champion catch? Aggregate recall is a single number that hides
+  which sub-populations the model is leaving behind. The 2018-Promotion
+  cohort is the standout weak segment the notebook flagged.
+</p>
+
+{% set segment_cols = [
+  ('LOYALTY_CARD',     'Loyalty Card'),
+  ('ENROLLMENT_TYPE',  'Enrollment Type'),
+  ('EDUCATION',        'Education'),
+  ('GENDER',           'Gender'),
+  ('MARITAL_STATUS',   'Marital Status'),
+] %}
+
+<div class="row g-3">
+  {% for col_key, col_label in segment_cols %}
+  <div class="col-lg-6">
+    <div class="p-4 card-custom h-100">
+      <h5 class="mb-3">Recall by {{ col_label }}</h5>
+      {% set rows = segments.get(col_key, []) %}
+      {% if rows %}
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th class="text-muted">Segment</th>
+                <th class="text-muted text-end">n</th>
+                <th class="text-muted text-end">Churn rate</th>
+                <th class="text-muted text-end">Recall</th>
+                <th class="text-muted text-end">TP / FN</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in rows %}
+              {% set is_weak = r.recall < 0.60 %}
+              {% set is_warn = r.recall < 0.75 %}
+              <tr>
+                <td>
+                  {{ r.segment }}
+                  {% if is_weak %}
+                    <span class="badge bg-danger ms-1">weak</span>
+                  {% elif is_warn %}
+                    <span class="badge bg-warning ms-1">below 75%</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">{{ r.n }}</td>
+                <td class="text-end">{{ '%.1f' % (r.churn_rate * 100) }}%</td>
+                <td class="text-end fw-bold
+                  {% if is_weak %}text-danger{% elif is_warn %}text-warning{% else %}text-success{% endif %}">
+                  {{ '%.1f' % (r.recall * 100) }}%
+                </td>
+                <td class="text-end text-muted small">{{ r.true_positives }} / {{ r.false_negatives }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted small mb-0">
+          Per-segment recall unavailable. Train the champion
+          (<code>python -m src.models.train_svc</code>) and reload —
+          the dashboard will compute live predictions on the local CSV.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

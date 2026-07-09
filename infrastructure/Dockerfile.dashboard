@@ -1,0 +1,64 @@
+# syntax=docker/dockerfile:1.6
+# Lean image for the Flask manager dashboard.
+#
+# Differences from infrastructure/Dockerfile (the API image):
+#   - Smaller requirements set: no airflow, no snowflake, no xgboost.
+#     The dashboard is read-only against the API + data layer.
+#   - No HEALTHCHECK on the API port; this one uses the Flask port.
+#
+# Build context: the project root (one level up from infrastructure/),
+# matching the API image so the same `.dockerignore` and source paths
+# apply.
+FROM python:3.11-slim AS builder
+WORKDIR /app
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+COPY requirements.txt /app/requirements.txt
+# Pin a minimal subset. The dashboard doesn't need airflow, snowflake,
+# xgboost, boto3, or fastapi/uvicorn (the dashboard talks to the API
+# over HTTP, not in-process). Keep flask, jinja2 (transitive), pandas
+# (data layer), numpy, scipy (stats), requests, mlflow (driver
+# extraction), scikit-learn (transitive through mlflow).
+# Easiest path: install everything from requirements.txt minus the
+# heavy weights, and let pip resolve.
+RUN grep -vE '^(apache-airflow|snowflake-connector-python|xgboost|boto3|fastapi|uvicorn|httpx)' \
+        /app/requirements.txt > /app/requirements.dashboard.txt \
+    && pip install --upgrade pip \
+    && pip install -r /app/requirements.dashboard.txt
+
+FROM python:3.11-slim AS runtime
+WORKDIR /app
+
+RUN groupadd --system app && useradd --system --gid app --create-home app
+
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Dashboard only needs the business_strategy package, the data
+# pipeline (it reads the local CSVs through pull_snowflake), the
+# dashboard's static templates, and a few scripts. NO tests, NO
+# notebooks, NO dags.
+COPY src/                              /app/src/
+COPY business_strategy/                /app/business_strategy/
+COPY data/raw/                         /app/data/raw/
+COPY scripts/                          /app/scripts/
+
+# data/raw/*.csv is gitignored, so a fresh clone won't have the CSVs.
+# The dashboard's data_access layer has a snapshot fallback for exactly
+# this reason. To actually serve real numbers, mount the CSVs at
+# /app/data/raw in docker-compose (or run `make retrain` once to
+# populate the SQLite cache).
+
+USER app
+
+EXPOSE 5001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/api/overview', timeout=2)"
+
+# The dashboard reads from the data layer at request time, so a
+# bind-mount of data/ into the container is what wires live numbers.
+CMD ["python", "business_strategy/flask_dashboard/app.py"]

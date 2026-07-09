@@ -1,0 +1,102 @@
+# Airflow 2.6+ with a Postgres metadata DB and a local MLflow/ML API sidecar.
+# Note: `version:` is intentionally omitted — Compose Spec is the modern
+# default. The original v1.0 used `version: '3'` which is deprecated.
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  airflow-init:
+    image: apache/airflow:2.6.3-python3.11
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db init && \
+        airflow users create \
+          --username admin --password admin \
+          --firstname Admin --lastname User \
+          --role Admin --email admin@example.com || true
+
+  airflow-webserver:
+    image: apache/airflow:2.6.3-python3.11
+    depends_on:
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../logs:/opt/airflow/logs
+    command: webserver
+
+  airflow-scheduler:
+    image: apache/airflow:2.6.3-python3.11
+    depends_on:
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../logs:/opt/airflow/logs
+    command: scheduler
+
+  churn-api:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile
+    depends_on:
+      - postgres
+    environment:
+      SNOWFLAKE_USER: ${SNOWFLAKE_USER}
+      SNOWFLAKE_PASSWORD: ${SNOWFLAKE_PASSWORD}
+      SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT}
+    ports:
+      - "8000:8000"
+
+  # Manager-facing Flask dashboard. Sits behind the API in the call
+  # graph: the dashboard's /predict form posts to churn-api:8000, so
+  # FASTAPI_URL is wired to the service name (Compose's internal DNS).
+  # Data is bind-mounted from the host so the live numbers match local
+  # dev; without the bind mount the dashboard renders the snapshot
+  # fallback.
+  churn-dashboard:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.dashboard
+    depends_on:
+      - churn-api
+    environment:
+      # Service-name DNS resolves churn-api inside the Compose network.
+      FASTAPI_URL: http://churn-api:8000/predict
+      FASTAPI_HEALTH_URL: http://churn-api:8000/health
+      FLASK_PORT: "5001"
+    ports:
+      - "5001:5001"
+    volumes:
+      # Live data. If the host has data/raw/*.csv, mount them in.
+      # Comment these out to fall back to the snapshot data.
+      - ../data/raw:/app/data/raw:ro
+      # Local MLflow state — the dashboard's driver extraction reads
+      # the champion from here.
+      - ../mlflow.db:/app/mlflow.db:ro
+      - ../mlruns:/app/mlruns:ro
+
+volumes:
+  postgres_data:
